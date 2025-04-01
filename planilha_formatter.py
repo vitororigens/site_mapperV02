@@ -58,6 +58,30 @@ class PlanilhaFormatter:
         # Data para nome do arquivo
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         
+    def _filter_w_pages(self, df):
+        """
+        Remove páginas que contenham '/w/' no caminho da URL.
+        
+        Args:
+            df: DataFrame com os dados
+            
+        Returns:
+            DataFrame filtrado sem as páginas com '/w/'
+        """
+        logger.info("Filtrando páginas com '/w/' no caminho...")
+        
+        # Criar máscara para identificar URLs com '/w/'
+        mask = df['De'].str.contains('/w/', na=False)
+        
+        # Contar quantas páginas serão removidas
+        pages_to_remove = mask.sum()
+        logger.info(f"Removendo {pages_to_remove} páginas com '/w/' no caminho")
+        
+        # Filtrar o DataFrame
+        df_filtered = df[~mask].copy()
+        
+        return df_filtered
+
     def process(self):
         """
         Processa o CSV, reorganiza e formata os dados.
@@ -71,6 +95,9 @@ class PlanilhaFormatter:
         except Exception as e:
             logger.error(f"Erro ao carregar CSV: {str(e)}")
             return False
+        
+        # Filtrar páginas com '/w/'
+        df = self._filter_w_pages(df)
         
         # Detectar nome do site se não foi fornecido
         if not self.site_prefix:
