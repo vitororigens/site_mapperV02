@@ -1,4 +1,4 @@
-Coletando informações do workspace# README
+# Site Mapper
 
 ## Descrição
 
@@ -10,29 +10,26 @@ Este projeto é uma ferramenta para mapeamento de sites e formatação de result
 ## Estrutura do Projeto
 
 ```
-__init__.py
-gui.py
-main.py
-planilha_formatter.py
-site_mapper.py
-models/
-    __init__.py
-    page_data.py
-services/
-    __init__.py
-    excel_service.py
-    page_node.py
-    site_mapper.py
-utils/
-    __init__.py
-    file_utils.py
-    url_utils.py
+.
+├── api/                    # API FastAPI
+│   ├── main.py            # Endpoints da API
+│   └── requirements.txt   # Dependências da API
+├── frontend/              # Frontend React
+│   ├── src/
+│   │   ├── components/   # Componentes React
+│   │   └── App.tsx       # Componente principal
+│   └── package.json      # Dependências do frontend
+├── models/               # Modelos de dados
+├── services/            # Serviços de negócio
+└── utils/              # Utilitários
 ```
 
 ## Requisitos
 
--   Python 3.7 ou superior
--   Bibliotecas listadas em `requirements.txt`
+- Python 3.7 ou superior
+- Node.js 16 ou superior
+- Bibliotecas listadas em `api/requirements.txt`
+- Dependências do frontend listadas em `frontend/package.json`
 
 ## Instalação
 
@@ -43,104 +40,70 @@ utils/
     cd seu-repositorio
     ```
 
-2. Crie um ambiente virtual e ative-o:
+2. Configure a API:
 
     ```sh
+    cd api
     python -m venv venv
     source venv/bin/activate  # No Windows use `venv\Scripts\activate`
-    ```
-
-3. Instale as dependências:
-    ```sh
     pip install -r requirements.txt
     ```
 
-## Uso
-
-### Comandos
-
--   **Mapeamento de site:**
+3. Configure o Frontend:
 
     ```sh
-    python main.py map <url> [--test] [--output DIR] [--concurrent NUM] [--rate NUM]
+    cd frontend
+    npm install
     ```
 
-    Exemplo:
+## Executando o Projeto
+
+1. Inicie a API:
 
     ```sh
-    python main.py map https://tarf.economia.df.gov.br --output ./resultados
+    cd api
+    source venv/bin/activate  # No Windows use `venv\Scripts\activate`
+    uvicorn main:app --reload
     ```
 
--   **Formatação de CSV para Excel:**
+2. Em outro terminal, inicie o Frontend:
 
     ```sh
-    python main.py format <csv_file> [--output DIR] [--site_prefix NAME]
+    cd frontend
+    npm start
     ```
 
-    Exemplo:
+3. Acesse a aplicação em `http://localhost:3000`
 
-    ```sh
-    python main.py format mapeamento.csv --site_prefix "Tribunal Administrativo de Recursos Fiscais"
-    ```
+## Funcionalidades
 
--   **Processo completo (mapeamento e formatação):**
+### Interface Web
 
-    ```sh
-    python main.py full <url> [--test] [--output DIR] [--site_prefix NAME]
-    ```
+- Formulário para configurar o mapeamento:
+  - URL do site
+  - Prefixo do site
+  - Número de requisições concorrentes
+  - Taxa de requisições por segundo
+- Monitoramento em tempo real do progresso
+- Exibição de status e mensagens de erro
+- Download automático dos resultados
 
-    Exemplo:
+### API Endpoints
 
-    ```sh
-    python main.py full https://tarf.economia.df.gov.br --site_prefix "Tribunal Administrativo de Recursos Fiscais"
-    ```
-
--   **Iniciar a interface gráfica:**
-    ```sh
-    python main.py gui
-    ```
-
-### Argumentos
-
--   `map <url>`: URL do site a ser mapeado.
--   `format <csv_file>`: Caminho para o arquivo CSV gerado pelo mapeador.
--   `full <url>`: URL do site a ser mapeado e formatado.
--   `gui`: Inicia a interface gráfica.
-
-#### Opções
-
--   `--test`: Executar em modo de teste (limite de páginas).
--   `--output DIR`: Diretório para salvar resultados (padrão: `output`).
--   `--concurrent NUM`: Número máximo de requisições concorrentes (padrão: 10).
--   `--rate NUM`: Requisições por segundo (padrão: 5).
--   `--site_prefix NAME`: Nome do site a substituir por "Raiz".
--   `--site_name NAME`: Nome do site para incluir no arquivo.
+- `POST /api/mapeamento`: Inicia um novo mapeamento
+- `GET /api/mapeamento/{job_id}`: Consulta o status de um mapeamento
 
 ## Exemplo de Uso
 
-1. Mapeamento de um site:
-
-    ```sh
-    python main.py map https://tarf.economia.df.gov.br --output ./resultados
-    ```
-
-2. Formatação de um arquivo CSV:
-
-    ```sh
-    python main.py format mapeamento.csv --site_prefix "Tribunal Administrativo de Recursos Fiscais"
-    ```
-
-3. Processo completo de mapeamento e formatação:
-
-    ```sh
-    python main.py full https://tarf.economia.df.gov.br --site_prefix "Tribunal Administrativo de Recursos Fiscais"
-    ```
-
-4. Iniciar a interface gráfica:
-    ```sh
-    python main.py gui
-    ```
+1. Acesse a interface web em `http://localhost:3000`
+2. Preencha o formulário com:
+   - URL do site a ser mapeado
+   - Nome do site para substituir "Raiz"
+   - Configurações de requisições (opcional)
+3. Clique em "Iniciar Mapeamento"
+4. Acompanhe o progresso em tempo real
+5. Os resultados serão salvos automaticamente no diretório de saída
 
 ## Logs
 
-Os logs são gerados no arquivo `main.log` e no console. Certifique-se de verificar os logs para detalhes sobre a execução e possíveis erros.
+Os logs da API são gerados no arquivo `api.log` e no console. Certifique-se de verificar os logs para detalhes sobre a execução e possíveis erros.
