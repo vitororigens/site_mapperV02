@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional
 import uvicorn
@@ -42,6 +43,7 @@ class MapeamentoRequest(BaseModel):
     concurrent_requests: Optional[int] = 10
     rate_limit: Optional[int] = 5
     output_dir: Optional[str] = "output"
+    formatar_planilha: Optional[bool] = True
 
 class MapeamentoResponse(BaseModel):
     job_id: str
@@ -68,7 +70,8 @@ async def iniciar_mapeamento(request: MapeamentoRequest, background_tasks: Backg
             request.site_prefix,
             request.concurrent_requests,
             request.rate_limit,
-            request.output_dir
+            request.output_dir,
+            request.formatar_planilha
         )
 
         return MapeamentoResponse(
@@ -87,14 +90,53 @@ async def status_mapeamento(job_id: str):
         raise HTTPException(status_code=404, detail="Job não encontrado")
     return jobs[job_id]
 
+@app.get("/api/mapeamento/{job_id}/download")
+async def download_mapeamento(job_id: str):
+    if job_id not in jobs:
+        raise HTTPException(status_code=404, detail="Job não encontrado")
+    
+    job = jobs[job_id]
+    if job["status"] != "concluido":
+        raise HTTPException(status_code=400, detail="Mapeamento ainda não concluído")
+    
+    # Usa o diretório de saída do job
+    output_dir = job.get("output_dir", "output")
+    logger.info(f"Procurando arquivos Excel em: {output_dir}")
+    
+    # Verifica se o diretório existe
+    if not os.path.exists(output_dir):
+        raise HTTPException(status_code=404, detail="Diretório de saída não encontrado")
+    
+    # Procura pelo arquivo Excel mais recente no diretório de saída
+    excel_files = [f for f in os.listdir(output_dir) if f.endswith('.xlsx')]
+    if not excel_files:
+        logger.error(f"Nenhum arquivo Excel encontrado em: {output_dir}")
+        raise HTTPException(status_code=404, detail="Arquivo Excel não encontrado")
+    
+    # Pega o arquivo mais recente
+    latest_file = max(excel_files, key=lambda x: os.path.getctime(os.path.join(output_dir, x)))
+    file_path = os.path.join(output_dir, latest_file)
+    logger.info(f"Arquivo encontrado: {file_path}")
+    
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado")
+    
+    return FileResponse(
+        file_path,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename=f"mapeamento_{job_id}.xlsx"
+    )
+
 async def executar_mapeamento(job_id: str, url: str, site_prefix: str, 
-                            concurrent_requests: int, rate_limit: int, output_dir: str):
+                            concurrent_requests: int, rate_limit: int, output_dir: str,
+                            formatar_planilha: bool = True):
     try:
         jobs[job_id]["status"] = "em_andamento"
         jobs[job_id]["message"] = "Mapeando site..."
 
         # Criar diretório de saída se não existir
         os.makedirs(output_dir, exist_ok=True)
+        logger.info(f"Diretório de saída criado/verificado: {output_dir}")
 
         # Executar mapeamento
         mapper = SiteMapper(
@@ -105,18 +147,22 @@ async def executar_mapeamento(job_id: str, url: str, site_prefix: str,
         
         # Mapear o site
         await mapper.map_site()
+        logger.info(f"Site mapeado com sucesso. Arquivo CSV: {mapper.csv_file}")
         
-        # Formatar resultados
-        formatter = PlanilhaFormatter(
-            input_csv=mapper.csv_file,
-            output_dir=output_dir,
-            site_prefix=site_prefix
-        )
-        formatter.format()
+        # Formatar resultados apenas se formatar_planilha for True
+        if formatar_planilha:
+            formatter = PlanilhaFormatter(
+                input_csv=mapper.csv_file,
+                output_dir=output_dir,
+                site_prefix=site_prefix
+            )
+            formatter.process()
+            logger.info(f"Planilha formatada e salva em: {output_dir}")
 
         jobs[job_id]["status"] = "concluido"
         jobs[job_id]["progress"] = 100
         jobs[job_id]["message"] = "Mapeamento concluído com sucesso"
+        jobs[job_id]["output_dir"] = output_dir  # Adiciona o diretório de saída ao job
 
     except Exception as e:
         logger.error(f"Erro durante o mapeamento: {str(e)}")

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import Container from '@mui/material/Container';
@@ -20,7 +20,7 @@ const theme = createTheme({
 });
 
 function App() {
-  const [jobId, setJobId] = React.useState<string | null>(null);
+  const [jobId, setJobId] = useState<string | null>(null);
 
   return (
     <ThemeProvider theme={theme}>
