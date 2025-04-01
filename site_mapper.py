@@ -14,6 +14,7 @@ from services.page_node import PageTree
 from models.page_data import PageData
 from utils.url_utils import URLUtils
 from utils.file_utils import FileUtils
+import csv
 
 logger = logging.getLogger(__name__)
 
@@ -422,6 +423,55 @@ class SiteMapper:
         page.arquivos_internos.clear()
         page.arquivos_externos.clear()
         page.pontos_atencao = "-"  # Inicializa com valor padrão
+
+        # 1. Primeiro tenta extrair categoria da URL se contiver /category/
+        category = self._extract_category(url)
+        if category:
+            page.categoria = category
+            logger.info(f"Categoria extraída da URL para {url}: {category}")
+        else:
+            # 2. Tenta extrair do breadcrumb - se a página pai for uma página de categoria
+            breadcrumb = self._extract_breadcrumb(soup)
+            if breadcrumb and len(breadcrumb) > 1:
+                parent_title = breadcrumb[-2]  # Pega o título da página pai
+                parent_url = None
+                
+                # Procura o link para a página pai no breadcrumb
+                breadcrumb_links = soup.find('div', class_='breadcrumbs').find_all('a') if soup.find('div', class_='breadcrumbs') else []
+                for link in breadcrumb_links:
+                    if link.get_text(strip=True) == parent_title:
+                        parent_url = urljoin(url, link.get('href'))
+                        break
+                
+                if parent_url:
+                    # Verifica se a página pai é uma página de categoria
+                    if 'carta-de-servicos' in parent_url.lower() or 'category' in parent_url.lower():
+                        page.categoria = parent_title
+                        logger.info(f"Categoria extraída do breadcrumb (página pai) para {url}: {parent_title}")
+            
+            # 3. Se ainda não tem categoria, tenta usar o título do menu lateral
+            if page.categoria == "-":
+                menu = soup.find(['nav', 'div', 'aside'], 
+                               class_=['menu', 'menu-lateral', 'menu-lateral-flutuante', 
+                                     'sidebar', 'left-menu'])
+                if menu:
+                    # Tentar diferentes seletores para o título do menu
+                    menu_title = None
+                    for selector in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', '.title', '.menu-title']:
+                        if isinstance(selector, str) and selector.startswith('.'):
+                            menu_title = menu.find(class_=selector[1:])
+                        else:
+                            menu_title = menu.find(selector)
+                            
+                        if menu_title:
+                            break
+                            
+                    if menu_title:
+                        page.categoria = menu_title.get_text(strip=True)
+                        logger.info(f"Categoria extraída do menu lateral para {url}: {page.categoria}")
+                    else:
+                        page.categoria = "-"
+                        logger.info("Menu lateral encontrado, mas sem título")
 
         # Melhorado: Buscar conteúdo em diferentes seletores, não apenas 'paginas-internas'
         main_content = soup.find(class_=['paginas-internas', 'conteudo', 'content', 'main-content'])
@@ -1039,6 +1089,57 @@ class SiteMapper:
             return img.get('alt').strip()
             
         return None
+
+    def _extract_category(self, url):
+        """
+        Extrai a categoria da URL apenas quando encontrar /category/.
+        
+        Args:
+            url: URL a ser analisada
+            
+        Returns:
+            str: Nome da categoria ou None se não for uma URL de categoria
+        """
+        try:
+            parsed = urlparse(url)
+            path_parts = parsed.path.strip('/').split('/')
+            
+            # Extrai apenas se tiver /category/ na URL
+            if 'category' in path_parts:
+                category_index = path_parts.index('category')
+                if category_index + 1 < len(path_parts):
+                    category = path_parts[category_index + 1]
+                    # Capitalizar primeira letra e substituir hífens por espaços
+                    category = category.replace('-', ' ').title()
+                    return category
+                    
+        except Exception as e:
+            logger.error(f"Erro ao extrair categoria da URL {url}: {str(e)}")
+            
+        return None
+
+    def _write_to_csv(self, url, parent_url=None, category=None):
+        """
+        Registra uma página no arquivo CSV.
+        """
+        try:
+            # Verifica se a página já existe no dicionário
+            if url in self.pages:
+                page = self.pages[url]
+                if parent_url:
+                    page.url_destino = parent_url
+                if category:
+                    page.categoria = category
+            else:
+                # Se não existir, cria um novo objeto PageData
+                page = PageData(url=url, hierarchy=[self.site_name])
+                page.url_destino = parent_url or ""
+                page.categoria = category or "-"
+            
+            # Usar o método _save_to_csv que já está configurado corretamente
+            self._save_to_csv(page)
+        except Exception as e:
+            logger.error(f"Erro ao escrever no CSV: {str(e)}")
 
 
 # Script principal para executar o mapeador
