@@ -1,8 +1,8 @@
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 import uvicorn
 import os
 import sys
@@ -49,6 +49,12 @@ class MapeamentoResponse(BaseModel):
     job_id: str
     status: str
     message: str
+
+class ArquivoXLSX(BaseModel):
+    nome: str
+    data_criacao: str
+    tamanho: int
+    caminho: str
 
 # Armazenamento temporário de jobs (em produção, use um banco de dados)
 jobs = {}
@@ -126,6 +132,54 @@ async def download_mapeamento(job_id: str):
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         filename=f"mapeamento_{job_id}.xlsx"
     )
+
+@app.get("/api/historico", response_model=List[ArquivoXLSX])
+async def listar_arquivos_xlsx():
+    try:
+        output_dir = "output"  # Diretório padrão de saída
+        if not os.path.exists(output_dir):
+            raise HTTPException(status_code=404, detail="Diretório de saída não encontrado")
+        
+        arquivos = []
+        for arquivo in os.listdir(output_dir):
+            if arquivo.endswith('.xlsx'):
+                caminho_completo = os.path.join(output_dir, arquivo)
+                arquivos.append(ArquivoXLSX(
+                    nome=arquivo,
+                    data_criacao=datetime.fromtimestamp(os.path.getctime(caminho_completo)).strftime('%Y-%m-%d %H:%M:%S'),
+                    tamanho=os.path.getsize(caminho_completo),
+                    caminho=caminho_completo
+                ))
+        
+        # Ordena os arquivos por data de criação (mais recentes primeiro)
+        arquivos.sort(key=lambda x: x.data_criacao, reverse=True)
+        return arquivos
+
+    except Exception as e:
+        logger.error(f"Erro ao listar arquivos: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/historico/download/{nome_arquivo}")
+async def download_arquivo_historico(nome_arquivo: str):
+    try:
+        output_dir = "output"
+        caminho_arquivo = os.path.join(output_dir, nome_arquivo)
+        
+        if not os.path.exists(caminho_arquivo):
+            raise HTTPException(status_code=404, detail="Arquivo não encontrado")
+        
+        if not nome_arquivo.endswith('.xlsx'):
+            raise HTTPException(status_code=400, detail="Arquivo não é um arquivo Excel válido")
+        
+        return FileResponse(
+            caminho_arquivo,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            filename=nome_arquivo
+        )
+
+    except Exception as e:
+        logger.error(f"Erro ao baixar arquivo: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 async def executar_mapeamento(job_id: str, url: str, site_prefix: str, 
                             concurrent_requests: int, rate_limit: int, output_dir: str,
