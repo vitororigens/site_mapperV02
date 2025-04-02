@@ -56,10 +56,20 @@ const StatusMapeamento: React.FC<StatusMapeamentoProps> = ({ jobId }) => {
         responseType: 'blob'
       });
       
+      // Extrair o nome do arquivo do header Content-Disposition
+      const contentDisposition = response.headers['content-disposition'];
+      let filename = 'SEPD.xlsx';
+      if (contentDisposition) {
+        const matches = /filename="(.+)"/.exec(contentDisposition);
+        if (matches && matches[1]) {
+          filename = matches[1];
+        }
+      }
+      
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `mapeamento_${jobId}.xlsx`);
+      link.setAttribute('download', filename);
       document.body.appendChild(link);
       link.click();
       link.remove();

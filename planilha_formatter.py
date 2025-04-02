@@ -121,13 +121,20 @@ class PlanilhaFormatter:
         # Reordenar linhas
         df = self._reorder_rows(df)
         
+        # Gerar nome do arquivo com prefixo e data/hora
+        now = datetime.now()
+        file_prefix = "SEPD"
+        file_date = now.strftime("%d-%m-%y")
+        file_time = now.strftime("%H-%M")
+        file_name = f"{file_prefix}_{file_date}_{file_time}"
+        
         # Salvar CSV processado
-        processed_csv = f"{self.output_dir}/formatted_{self.timestamp}.csv"
+        processed_csv = f"{self.output_dir}/{file_name}.csv"
         df.to_csv(processed_csv, index=False)
         logger.info(f"CSV processado salvo em: {processed_csv}")
         
         # Salvar Excel formatado
-        excel_file = f"{self.output_dir}/formatted_{self.timestamp}.xlsx"
+        excel_file = f"{self.output_dir}/{file_name}.xlsx"
         self._save_to_excel(df, excel_file)
         logger.info(f"Excel formatado salvo em: {excel_file}")
         

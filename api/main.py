@@ -127,10 +127,15 @@ async def download_mapeamento(job_id: str):
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="Arquivo não encontrado")
     
+    # Extrai a data e hora do nome do arquivo
+    file_name = os.path.basename(file_path)
+    file_date = file_name.split('_')[1]  # DD-MM-YY
+    file_time = file_name.split('_')[2].split('.')[0]  # HH-MM
+    
     return FileResponse(
         file_path,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        filename=f"mapeamento_{job_id}.xlsx"
+        filename=f"SEPD_{file_date}_{file_time}.xlsx"
     )
 
 @app.get("/api/historico", response_model=List[ArquivoXLSX])
