@@ -15,6 +15,9 @@ from models.page_data import PageData
 from utils.url_utils import URLUtils
 from utils.file_utils import FileUtils
 import csv
+import os
+from datetime import datetime
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -1140,6 +1143,60 @@ class SiteMapper:
             self._save_to_csv(page)
         except Exception as e:
             logger.error(f"Erro ao escrever no CSV: {str(e)}")
+
+    def save_to_csv(self):
+        """
+        Salva os dados mapeados em um arquivo CSV.
+        """
+        try:
+            # Criar diretório de logs se não existir
+            logs_dir = "logs"
+            os.makedirs(logs_dir, exist_ok=True)
+            
+            # Gerar nome do arquivo com prefixo e data/hora
+            now = datetime.now()
+            file_prefix = "SEPD"
+            file_date = now.strftime("%d-%m-%y")
+            file_time = now.strftime("%H-%M")
+            file_name = f"{file_prefix}_{file_date}_{file_time}"
+            
+            # Salvar CSV de páginas
+            self.csv_file = f"{self.output_dir}/{file_name}.csv"
+            self.df.to_csv(self.csv_file, index=False)
+            logger.info(f"CSV salvo em: {self.csv_file}")
+            
+            # Salvar log do terminal
+            log_file = f"{logs_dir}/{file_name}_log.csv"
+            
+            # Criar DataFrame com os logs
+            log_data = {
+                'timestamp': [],
+                'level': [],
+                'message': []
+            }
+            
+            # Ler o arquivo de log atual
+            with open('site_mapper.log', 'r', encoding='utf-8') as f:
+                for line in f:
+                    try:
+                        parts = line.strip().split(' - ')
+                        if len(parts) >= 4:
+                            log_data['timestamp'].append(parts[0])
+                            log_data['level'].append(parts[2])
+                            log_data['message'].append(' - '.join(parts[3:]))
+                    except Exception as e:
+                        logger.error(f"Erro ao processar linha de log: {str(e)}")
+                        continue
+            
+            # Criar e salvar o DataFrame de logs
+            log_df = pd.DataFrame(log_data)
+            log_df.to_csv(log_file, index=False)
+            logger.info(f"Log do terminal salvo em: {log_file}")
+            
+            return True
+        except Exception as e:
+            logger.error(f"Erro ao salvar CSV: {str(e)}")
+            return False
 
 
 # Script principal para executar o mapeador

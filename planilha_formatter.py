@@ -137,6 +137,51 @@ class PlanilhaFormatter:
         excel_file = f"{self.output_dir}/{file_name}.xlsx"
         self._save_to_excel(df, excel_file)
         logger.info(f"Excel formatado salvo em: {excel_file}")
+
+        # Salvar log do terminal
+        logs_dir = "logs"
+        os.makedirs(logs_dir, exist_ok=True)
+        log_file = f"{logs_dir}/{file_name}_log.csv"
+        
+        # Criar DataFrame com os logs
+        log_data = {
+            'timestamp': [],
+            'level': [],
+            'message': []
+        }
+        
+        # Tentar diferentes codificações
+        encodings = ['utf-8', 'latin1', 'cp1252', 'iso-8859-1']
+        log_content = None
+        
+        for encoding in encodings:
+            try:
+                with open('formatter.log', 'r', encoding=encoding) as f:
+                    log_content = f.readlines()
+                    break
+            except UnicodeDecodeError:
+                continue
+        
+        if log_content is None:
+            logger.error("Não foi possível ler o arquivo de log com nenhuma codificação")
+            return False
+        
+        # Processar as linhas do log
+        for line in log_content:
+            try:
+                parts = line.strip().split(' - ')
+                if len(parts) >= 4:
+                    log_data['timestamp'].append(parts[0])
+                    log_data['level'].append(parts[2])
+                    log_data['message'].append(' - '.join(parts[3:]))
+            except Exception as e:
+                logger.error(f"Erro ao processar linha de log: {str(e)}")
+                continue
+        
+        # Criar e salvar o DataFrame de logs
+        log_df = pd.DataFrame(log_data)
+        log_df.to_csv(log_file, index=False)
+        logger.info(f"Log do terminal salvo em: {log_file}")
         
         return True
     

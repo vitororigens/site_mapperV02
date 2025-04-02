@@ -64,6 +64,12 @@ class LogEntry(BaseModel):
     message: str
     job_id: Optional[str] = None
 
+class LogFile(BaseModel):
+    nome: str
+    data_criacao: str
+    tamanho: int
+    caminho: str
+
 # Armazenamento temporário de jobs (em produção, use um banco de dados)
 jobs = {}
 
@@ -194,87 +200,57 @@ async def download_arquivo_historico(nome_arquivo: str):
         logger.error(f"Erro ao baixar arquivo: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/logs", response_model=List[LogEntry])
+@app.get("/api/logs", response_model=List[LogFile])
 async def listar_logs():
     try:
-        logs = []
-        log_files = [
-            "api.log",
-            "formatter.log",
-            "site_mapper.log"
-        ]
+        logs_dir = "logs"  # Diretório específico para logs do terminal
         
-        # Lista de codificações para tentar
-        encodings = ['utf-8', 'latin1', 'cp1252', 'iso-8859-1']
+        if not os.path.exists(logs_dir):
+            os.makedirs(logs_dir)
+            logger.info(f"Diretório de logs criado: {logs_dir}")
         
-        for log_file in log_files:
-            if os.path.exists(log_file):
-                # Tentar diferentes codificações
-                for encoding in encodings:
-                    try:
-                        with open(log_file, 'r', encoding=encoding) as f:
-                            for line in f:
-                                try:
-                                    # Parse do formato de log: "2024-04-01 22:35:00,000 - name - INFO - message"
-                                    parts = line.strip().split(' - ')
-                                    if len(parts) >= 4:
-                                        timestamp = parts[0]
-                                        name = parts[1]
-                                        level = parts[2]
-                                        message = ' - '.join(parts[3:])
-                                        
-                                        # Extrair job_id do nome do logger se disponível
-                                        job_id = None
-                                        if name.startswith('job_'):
-                                            job_id = name.split('_')[1]
-                                        
-                                        logs.append(LogEntry(
-                                            timestamp=timestamp,
-                                            level=level,
-                                            message=message,
-                                            job_id=job_id
-                                        ))
-                                except Exception as e:
-                                    logger.error(f"Erro ao processar linha de log: {str(e)}")
-                                    continue
-                        # Se chegou aqui, a codificação funcionou
-                        break
-                    except UnicodeDecodeError:
-                        # Se falhou, tenta a próxima codificação
-                        continue
-                    except Exception as e:
-                        logger.error(f"Erro ao ler arquivo {log_file}: {str(e)}")
-                        break
+        arquivos = []
+        for arquivo in os.listdir(logs_dir):
+            if arquivo.endswith('.csv'):
+                caminho_completo = os.path.join(logs_dir, arquivo)
+                arquivos.append(LogFile(
+                    nome=arquivo,
+                    data_criacao=datetime.fromtimestamp(os.path.getctime(caminho_completo)).strftime('%Y-%m-%d %H:%M:%S'),
+                    tamanho=os.path.getsize(caminho_completo),
+                    caminho=caminho_completo
+                ))
         
-        # Ordenar logs por timestamp (mais recentes primeiro)
-        logs.sort(key=lambda x: x.timestamp, reverse=True)
-        return logs
+        # Ordena os arquivos por data de criação (mais recentes primeiro)
+        arquivos.sort(key=lambda x: x.data_criacao, reverse=True)
+        return arquivos
 
     except Exception as e:
         logger.error(f"Erro ao listar logs: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/logs/download")
-async def download_logs():
+@app.get("/api/logs/download/{filename}")
+async def download_logs(filename: str):
     try:
-        # Criar um arquivo CSV temporário
-        temp_csv = "temp_logs.csv"
-        logs = await listar_logs()
+        logs_dir = "logs"
+        file_path = os.path.join(logs_dir, filename)
         
-        # Converter logs para DataFrame
-        df = pd.DataFrame([log.dict() for log in logs])
+        if not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="Arquivo não encontrado")
         
-        # Salvar como CSV
-        df.to_csv(temp_csv, index=False)
+        if not filename.endswith('.csv'):
+            raise HTTPException(status_code=400, detail="Arquivo não é um arquivo CSV válido")
         
-        # Retornar o arquivo
+        # Extrair a data e hora do nome do arquivo
+        file_date = filename.split('_')[1]  # DD-MM-YY
+        file_time = filename.split('_')[2]  # HH-MM
+        
         return FileResponse(
-            temp_csv,
+            file_path,
             media_type="text/csv",
-            filename=f"logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            filename=f"SEPD_{file_date}_{file_time}_log.csv"
         )
     except Exception as e:
-        logger.error(f"Erro ao baixar logs: {str(e)}")
+        logger.error(f"Erro ao baixar log: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 async def executar_mapeamento(job_id: str, url: str, site_prefix: str, 
