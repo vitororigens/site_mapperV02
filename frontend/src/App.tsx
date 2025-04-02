@@ -6,9 +6,11 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import HistoryIcon from '@mui/icons-material/History';
+import BugReportIcon from '@mui/icons-material/BugReport';
 import MapeamentoForm from './components/MapeamentoForm';
 import StatusMapeamento from './components/StatusMapeamento';
 import HistoricoModal from './components/HistoricoModal';
+import LogsModal from './components/LogsModal';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
 const theme = createTheme({
@@ -26,6 +28,7 @@ const theme = createTheme({
 function App() {
   const [jobId, setJobId] = useState<string | null>(null);
   const [showHistorico, setShowHistorico] = useState(false);
+  const [showLogs, setShowLogs] = useState(false);
 
   return (
     <ThemeProvider theme={theme}>
@@ -36,13 +39,22 @@ function App() {
             <Typography variant="h4" component="h1">
               Mapeador de Sites
             </Typography>
-            <Button
-              variant="contained"
-              startIcon={<HistoryIcon />}
-              onClick={() => setShowHistorico(true)}
-            >
-              Histórico
-            </Button>
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <Button
+                variant="contained"
+                startIcon={<BugReportIcon />}
+                onClick={() => setShowLogs(true)}
+              >
+                Logs
+              </Button>
+              <Button
+                variant="contained"
+                startIcon={<HistoryIcon />}
+                onClick={() => setShowHistorico(true)}
+              >
+                Histórico
+              </Button>
+            </Box>
           </Box>
           <Typography variant="subtitle1" gutterBottom align="center" color="text.secondary">
             Ferramenta para mapeamento e formatação de sites em planilhas Excel
@@ -55,6 +67,7 @@ function App() {
         </Box>
       </Container>
       <HistoricoModal show={showHistorico} onHide={() => setShowHistorico(false)} />
+      <LogsModal show={showLogs} onHide={() => setShowLogs(false)} />
     </ThemeProvider>
   );
 }
