@@ -100,7 +100,7 @@ const MapeamentoForm: React.FC<MapeamentoFormProps> = ({ onJobCreated }) => {
             }
             label="Formatar Planilha de Resultados"
           />
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <Box sx={{ display: 'flex', gap: 2 }}>
             <Button
               type="submit"
               variant="contained"
@@ -109,6 +109,21 @@ const MapeamentoForm: React.FC<MapeamentoFormProps> = ({ onJobCreated }) => {
               startIcon={loading ? <CircularProgress size={20} /> : null}
             >
               {loading ? 'Iniciando...' : 'Iniciar Mapeamento'}
+            </Button>
+            <Button
+              type="button"
+              variant="outlined"
+              color="secondary"
+              onClick={() => {
+                setUrl('');
+                setSitePrefix('');
+                setConcurrentRequests('10');
+                setRateLimit('5');
+                setFormatarPlanilha(true);
+                setError('');
+              }}
+            >
+              Limpar Formulário
             </Button>
           </Box>
         </Box>
