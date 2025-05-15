@@ -31,6 +31,33 @@ class SiteMapper:
         self.site_name: str = "Raiz" 
         self.page_tree = PageTree(root_name=self.site_name)
         
+        # Categorias de notícias para ignorar
+        self.news_categories = {
+            "noticias", 
+            "destaques principais", 
+            "destaques secretaria", 
+            "destaques sem foto", 
+            "destaque", 
+            "todas as notícias", 
+            "destaques principais carrossel",
+            "noticias da secretaria",
+            "módulo destaques da secretaria",
+            "módulo carrossel de destaques principais",
+            "módulo destaques sem foto - fundo azul",
+            "categoria",
+            "a secretária",
+            "módulo destaques do tarf",
+            "modulo-15-botoes",
+            "modulo carrossel de destaques principais",
+            "sala de imprensa",
+            "Secretaria na mídia",
+            "Notícias do TARF",
+            "Módulo Destaques com fotos - FUNDO AZUL",
+            "Módulo Destaques sem foto-FUNDO AZUL",
+            "carrossel de destaques",
+            "modulo Destaques com fotos - fundo azul"
+        }
+        
         # Configurações de controle
         self.test_mode = test_mode
         self.max_pages = float('inf') # 30 if test_mode adicionar caso precise testar 
@@ -254,10 +281,18 @@ class SiteMapper:
                 soup = BeautifulSoup(html, 'html.parser')
                 
                 breadcrumb = self._extract_breadcrumb(soup)
-                if breadcrumb and self.url_utils.is_news_breadcrumb(breadcrumb):
-                    logger.info(f"Link interno ignorado por ser notícia: {url}")
-                    logger.info(f"Breadcrumb extraído para {url}: {hierarchy}")
-                    return
+                if breadcrumb:
+                    # Verifica se o breadcrumb contém alguma das categorias de notícias
+                    breadcrumb_text = ' '.join(breadcrumb).lower()
+                    if any(category.lower() in breadcrumb_text for category in self.news_categories):
+                        logger.info(f"Link interno ignorado por conter categoria de notícia no breadcrumb: {url}")
+                        logger.info(f"Breadcrumb extraído para {url}: {breadcrumb}")
+                        return
+                    
+                    if self.url_utils.is_news_breadcrumb(breadcrumb):
+                        logger.info(f"Link interno ignorado por ser notícia: {url}")
+                        logger.info(f"Breadcrumb extraído para {url}: {hierarchy}")
+                        return
                 
                 # Páginas internas são sempre ocultas
                 page = PageData(url, hierarchy, is_visible=False)
@@ -365,6 +400,11 @@ class SiteMapper:
             self.visited.add(url)
             logger.info(f"Processando página: {url}")
 
+            # Check for news URLs early
+            if self.url_utils.is_news_url(url):
+                logger.info(f"Página ignorada por ser notícia (URL): {url}")
+                return
+
             html = await self._fetch_page(url, session)
             if not html:
                 return
@@ -373,9 +413,26 @@ class SiteMapper:
             
             breadcrumb = self._extract_breadcrumb(soup)
             if breadcrumb:
+                # Verifica se o breadcrumb contém alguma das categorias de notícias
+                breadcrumb_text = ' '.join(breadcrumb).lower()
+                if any(category.lower() in breadcrumb_text for category in self.news_categories):
+                    logger.info(f"Página ignorada por conter categoria de notícia no breadcrumb: {url}")
+                    logger.info(f"Breadcrumb extraído: {breadcrumb}")
+                    return
+                
                 if self.url_utils.is_news_breadcrumb(breadcrumb):
                     logger.info(f"Página ignorada por ser notícia (breadcrumb): {url}")
+                    logger.info(f"Breadcrumb extraído: {breadcrumb}")
                     return
+                
+                # Verifica se o título da página contém categorias de notícias
+                title = soup.find('title')
+                if title:
+                    title_text = title.text.strip().lower()
+                    if any(category.lower() in title_text for category in self.news_categories):
+                        logger.info(f"Página ignorada por conter categoria de notícia no título: {url}")
+                        logger.info(f"Título: {title_text}")
+                        return
                 
                 # Define visibilidade baseada na hierarquia
                 is_root_page = len(breadcrumb) == 2  # ["Raiz", "NOME"]
@@ -405,7 +462,6 @@ class SiteMapper:
         except Exception as e:
             logger.error(f"Erro ao processar página {url}: {e}", exc_info=True)
 
-    # CORREÇÃO: Este método estava com indentação incorreta, agora está no nível correto
     async def _analyze_page_content(self, url: str, soup: BeautifulSoup, page: PageData):
         """Analisa conteúdo da página."""
         page.qtd_arquivos = 0
@@ -709,6 +765,24 @@ class SiteMapper:
             return
             
         try:
+            # Verifica primeiro se é URL de notícia
+            if self.url_utils.is_news_url(url):
+                logger.info(f"Item de menu ignorado por ser notícia (URL): {url}")
+                return
+                
+            # Verifica se a hierarquia contém categoria de notícia
+            hierarchy_text = ' '.join(hierarchy).lower()
+            if any(category.lower() in hierarchy_text for category in self.news_categories):
+                logger.info(f"Item de menu ignorado por conter categoria de notícia na hierarquia: {url}")
+                logger.info(f"Hierarquia: {hierarchy}")
+                return
+                
+            # Verifica se o título contém categoria de notícia
+            if any(category.lower() in title.lower() for category in self.news_categories):
+                logger.info(f"Item de menu ignorado por conter categoria de notícia no título: {url}")
+                logger.info(f"Título: {title}")
+                return
+                
             self.visited.add(url)
             logger.info(f"Processando item de menu: {title} -> {url}")
 
@@ -738,9 +812,30 @@ class SiteMapper:
                     # Verifica se há um breadcrumb na página que possa enriquecer a hierarquia
                     extracted_breadcrumb = self._extract_breadcrumb(soup)
                     if extracted_breadcrumb:
+                        # Verifica se o breadcrumb contém categoria de notícia
+                        breadcrumb_text = ' '.join(extracted_breadcrumb).lower()
+                        if any(category.lower() in breadcrumb_text for category in self.news_categories):
+                            logger.info(f"Item de menu ignorado por conter categoria de notícia no breadcrumb: {url}")
+                            logger.info(f"Breadcrumb extraído: {extracted_breadcrumb}")
+                            return
+                            
+                        if self.url_utils.is_news_breadcrumb(extracted_breadcrumb):
+                            logger.info(f"Item de menu ignorado por ser notícia (breadcrumb): {url}")
+                            logger.info(f"Breadcrumb extraído: {extracted_breadcrumb}")
+                            return
+                            
                         # Se encontrou um breadcrumb, ele tem prioridade
                         page.breadcrumb_hierarchy = extracted_breadcrumb
                         logger.info(f"Breadcrumb encontrado para {url}: {extracted_breadcrumb}")
+                    
+                    # Verifica o título da página
+                    title_tag = soup.find('title')
+                    if title_tag:
+                        title_text = title_tag.text.strip().lower()
+                        if any(category.lower() in title_text for category in self.news_categories):
+                            logger.info(f"Item de menu ignorado por conter categoria de notícia no título da página: {url}")
+                            logger.info(f"Título da página: {title_text}")
+                            return
                     
                     # Analisa o conteúdo da página
                     await self._analyze_page_content(url, soup, page)
@@ -752,7 +847,7 @@ class SiteMapper:
                     # Processa links internos apenas para páginas que não são de nível principal
                     if not is_root_page and self.process_internal_links:
                         await self._process_internal_links(url, soup, hierarchy)
-                    
+
         except Exception as e:
             logger.error(f"Erro ao processar item de menu {url}: {e}", exc_info=True)
 
